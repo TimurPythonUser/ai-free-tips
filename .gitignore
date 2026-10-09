@@ -1,0 +1,22 @@
+# --- Секреты: НИКОГДА не коммитим ---
+.env
+.env.*
+!.env.example
+*.session
+*.session-journal
+
+# --- Данные бота (очередь, история, ролики, логи) и бэкапы ---
+data/
+backups/
+*.log
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- IDE / локальные настройки ---
+.claude/
+.vscode/
+.idea/

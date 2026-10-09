@@ -1,0 +1,51 @@
+services:
+  # Автономный воркер: добыча + публикация по расписанию, без панели.
+  worker:
+    build: .
+    image: tg-halyava
+    container_name: tg-halyava-worker
+    restart: always              # переживает падения и ребут сервера
+    env_file:
+      - .env                     # ключи берутся с хоста, в образ НЕ запекаются
+    volumes:
+      - ./data:/app/data         # очередь/история/лог живут снаружи контейнера
+    logging:                     # без лимита json-лог растёт вечно и съедает диск
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # порты наружу НЕ пробрасываем — панели нет, дыры нет
+
+  # Комментинг-юзербот: долгоживущий процесс (Telethon), автомат с подтверждением.
+  userbot:
+    build: .
+    image: tg-halyava
+    container_name: tg-halyava-userbot
+    restart: unless-stopped
+    command: ["python", "-m", "app.userbot"]
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Локальная веб-панель (ручной режим). НЕ запускается по умолчанию.
+  # Поднять при необходимости:  docker compose --profile panel up panel
+  panel:
+    build: .
+    image: tg-halyava
+    container_name: tg-halyava-panel
+    profiles: ["panel"]
+    restart: unless-stopped
+    # в контейнере слушаем 0.0.0.0, но наружу пробрасываем только на localhost хоста
+    command: ["uvicorn", "web.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:8000:8000"    # только localhost — наружу не торчит

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Free Tips — панель агента</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    padding: 16px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  .chip { font-size: 13px; color: var(--muted); background: var(--panel);
+    border: 1px solid var(--border); padding: 4px 10px; border-radius: 20px; }
+  .chip b { color: var(--text); }
+  .spacer { flex: 1; }
+  button#refresh, button#video {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 10px 20px; font-size: 15px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+  }
+  button#video { background: #8250df; }
+  button#refresh:hover, button#video:hover { filter: brightness(1.1); }
+  button#refresh:disabled, button#video:disabled { opacity: .55; cursor: not-allowed; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.run { background: var(--yellow); animation: pulse 1s infinite; }
+  .dot.idle { background: var(--green); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 340px; gap: 0; min-height: 0; }
+  .logs { padding: 16px 24px; overflow-y: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.7; }
+  .logline { white-space: pre-wrap; word-break: break-word; }
+  .logline .t { color: var(--muted); margin-right: 8px; }
+  .lv-error { color: var(--red); }
+  .lv-warn { color: var(--yellow); }
+  .lv-success { color: var(--green); }
+  aside { border-left: 1px solid var(--border); padding: 16px; overflow-y: auto; background: var(--panel); }
+  aside h2 { font-size: 13px; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; margin: 0 0 12px; }
+  .post { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: var(--bg); }
+  .post .title { font-size: 14px; font-weight: 600; }
+  .post .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .post a { color: var(--accent); text-decoration: none; }
+  .empty { color: var(--muted); font-size: 13px; }
+  .banner { display:none; padding: 10px 24px; background: #3d2b0b; color: var(--yellow); border-bottom: 1px solid var(--border); font-size: 13px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🎁 AI Free Tips — агент</h1>
+    <span class="chip">Канал: <b id="channel">…</b></span>
+    <span class="chip"><span class="dot idle" id="statusDot"></span> <span id="statusText">ожидание</span></span>
+    <span class="chip">Последний запуск: <b id="lastRun">—</b></span>
+    <div class="spacer"></div>
+    <button id="video" onclick="doVideo()">
+      🎬 <span id="videoText">Ролик</span>
+    </button>
+    <button id="refresh" onclick="doRefresh()">
+      <span id="btnIcon">🔄</span> <span id="btnText">Обновить</span>
+    </button>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <main>
+    <div class="logs" id="logs"></div>
+    <aside>
+      <h2>Последние публикации</h2>
+      <div id="history"><div class="empty">пока пусто</div></div>
+    </aside>
+  </main>
+
+<script>
+const logsEl = document.getElementById('logs');
+
+function addLog(e) {
+  const div = document.createElement('div');
+  div.className = 'logline lv-' + (e.level || 'info');
+  div.innerHTML = `<span class="t">${e.ts || ''}</span>${escapeHtml(e.message || '')}`;
+  logsEl.appendChild(div);
+  logsEl.scrollTop = logsEl.scrollHeight;
+}
+function escapeHtml(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+// Живой поток логов через SSE
+const es = new EventSource('/api/stream');
+es.onmessage = (ev) => { try { addLog(JSON.parse(ev.data)); } catch(_){} };
+
+async function doRefresh() {
+  const btn = document.getElementById('refresh');
+  btn.disabled = true;
+  const r = await fetch('/api/refresh', {method:'POST'});
+  const j = await r.json();
+  if (!j.ok) showBanner(j.message || 'Не удалось запустить');
+  setTimeout(pollStatus, 500);
+}
+
+async function doVideo() {
+  const btn = document.getElementById('video');
+  btn.disabled = true;
+  const r = await fetch('/api/make_video', {method:'POST'});
+  const j = await r.json();
+  if (!j.ok) showBanner(j.message || 'Не удалось запустить');
+  setTimeout(pollStatus, 500);
+}
+
+function showBanner(msg){
+  const b = document.getElementById('banner');
+  b.textContent = '⚠ ' + msg; b.style.display = 'block';
+  setTimeout(()=>{ b.style.display='none'; }, 6000);
+}
+
+async function pollStatus() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+    document.getElementById('channel').textContent = s.channel;
+    const running = s.status.running;
+    document.getElementById('statusDot').className = 'dot ' + (running ? 'run' : 'idle');
+    document.getElementById('statusText').textContent = running ? 'работает…' : 'ожидание';
+    document.getElementById('lastRun').textContent = s.status.last_run || '—';
+    document.getElementById('refresh').disabled = running;
+    document.getElementById('video').disabled = running;
+    document.getElementById('btnText').textContent = running ? 'Идёт работа…' : 'Обновить';
+    if (s.missing_keys && s.missing_keys.length)
+      showBanner('Заполни ключи в .env: ' + s.missing_keys.join(', '));
+  } catch(_){}
+  loadHistory();
+}
+
+async function loadHistory() {
+  try {
+    const items = await (await fetch('/api/history')).json();
+    const el = document.getElementById('history');
+    if (!items.length) { el.innerHTML = '<div class="empty">пока пусто</div>'; return; }
+    el.innerHTML = items.map(it => `
+      <div class="post">
+        <div class="title">${escapeHtml(it.title || '')}</div>
+        <div class="meta">${(it.posted_at||'').replace('T',' ').slice(0,16)}</div>
+        <div class="meta"><a href="${it.url}" target="_blank">открыть ссылку ↗</a></div>
+      </div>`).join('');
+  } catch(_){}
+}
+
+pollStatus();
+setInterval(pollStatus, 3000);
+</script>
+</body>
+</html>

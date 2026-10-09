@@ -1,0 +1,30 @@
+# --- Секреты: НИКОГДА не запекаем в образ ---
+.env
+.env.*
+
+# --- Python-мусор ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# --- Данные приложения (монтируются volume'ом, не нужны в образе) ---
+data/
+
+# --- Git и IDE ---
+.git/
+.gitignore
+.claude/
+.vscode/
+.idea/
+
+# --- Прочее ---
+*.log
+*.md
+ЗАПУСК.bat
+УСТАНОВКА (один раз).bat
